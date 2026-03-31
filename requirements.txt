@@ -1,0 +1,3 @@
+httpx
+APScheduler
+python-dotenv
