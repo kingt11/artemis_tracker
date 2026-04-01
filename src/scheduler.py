@@ -58,10 +58,10 @@ async def adaptive_ll2_poll():
     except Exception as e:
         print(f"[Scheduler] Error rescheduling LL2 job: {e}")
     
-    # Dynamically start YouTube polling when we enter T-3h window
+    # Dynamically start YouTube polling when we enter T-7h window (stream starts ~T-5h30m)
     now = datetime.now(timezone.utc)
-    if not youtube_started and (net_time - now) <= timedelta(hours=3):
-        print("[Scheduler] Entering T-3h window — starting YouTube polling (60s)")
+    if not youtube_started and (net_time - now) <= timedelta(hours=7):
+        print("[Scheduler] Entering T-7h window — starting YouTube polling (60s)")
         scheduler.add_job(safe_youtube, IntervalTrigger(seconds=60), id="youtube_job", next_run_time=datetime.now(timezone.utc))
         youtube_started = True
 
@@ -90,15 +90,15 @@ def setup_scheduler():
     scheduler.add_job(safe_ll2_events, IntervalTrigger(minutes=30), id="ll2_events_job", next_run_time=datetime.now(timezone.utc))
     scheduler.add_job(safe_snapi, IntervalTrigger(minutes=30), id="snapi_job", next_run_time=datetime.now(timezone.utc))
     
-    # YouTube polling
+    # YouTube polling — stream starts ~T-5h30m, begin monitoring at T-7h
     global youtube_started
     now = datetime.now(timezone.utc)
-    if net_time - now <= timedelta(hours=3):
-        print("[Scheduler] Within 3h of NET, enabling YouTube polling (60s)")
+    if net_time - now <= timedelta(hours=7):
+        print("[Scheduler] Within 7h of NET, enabling YouTube polling (60s)")
         scheduler.add_job(safe_youtube, IntervalTrigger(seconds=60), id="youtube_job", next_run_time=datetime.now(timezone.utc))
         youtube_started = True
     else:
-        print(f"[Scheduler] YouTube polling deferred until T-3h (NET: {net_str})")
+        print(f"[Scheduler] YouTube polling deferred until T-7h (NET: {net_str})")
         
     scheduler.start()
     print("[Scheduler] All jobs started")
