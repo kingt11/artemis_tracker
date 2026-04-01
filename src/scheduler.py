@@ -53,13 +53,13 @@ def setup_scheduler():
         
     interval = get_polling_interval(net_time)
     
-    scheduler.add_job(adaptive_ll2_poll, IntervalTrigger(minutes=interval), id="ll2_poll_job")
-    scheduler.add_job(fetch_ll2_events, IntervalTrigger(minutes=30), id="ll2_events_job")
-    scheduler.add_job(poll_snapi, IntervalTrigger(minutes=30), id="snapi_job")
+    scheduler.add_job(adaptive_ll2_poll, IntervalTrigger(minutes=interval), id="ll2_poll_job", next_run_time=datetime.now(timezone.utc))
+    scheduler.add_job(fetch_ll2_events, IntervalTrigger(minutes=30), id="ll2_events_job", next_run_time=datetime.now(timezone.utc))
+    scheduler.add_job(poll_snapi, IntervalTrigger(minutes=30), id="snapi_job", next_run_time=datetime.now(timezone.utc))
     
     # YouTube polling
     now = datetime.now(timezone.utc)
     if net_time - now <= timedelta(hours=3):
-        scheduler.add_job(poll_youtube, IntervalTrigger(seconds=60), id="youtube_job")
+        scheduler.add_job(poll_youtube, IntervalTrigger(seconds=60), id="youtube_job", next_run_time=datetime.now(timezone.utc))
         
     scheduler.start()
