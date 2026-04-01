@@ -5,11 +5,12 @@ After=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/artemis-tracker
-ExecStart=/opt/artemis-tracker/venv/bin/python src/main.py
+WorkingDirectory=/opt/artemis-tracker/src
+ExecStart=/opt/artemis-tracker/venv/bin/python -u main.py
 Restart=always
 RestartSec=10
 EnvironmentFile=/opt/artemis-tracker/.env
+Environment=PYTHONUNBUFFERED=1
 
 # Update Workflow:
 # 1. cd /opt/artemis-tracker
