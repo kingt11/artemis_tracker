@@ -37,9 +37,11 @@ async def fetch_ll2_launch():
 async def poll_ll2():
     data = await fetch_ll2_launch()
     if not data:
+        print("[LL2 Poll] No data returned, skipping change detection")
         return
 
     state = load_state()
+    print(f"[LL2 Poll] Current state: status_id={state.get('last_status_id')}, net={state.get('last_net')}, prob={state.get('last_probability')}")
     
     # Extract fields
     status_id = data.get("status", {}).get("id")
@@ -51,6 +53,8 @@ async def poll_ll2():
     weather_concerns = data.get("weather_concerns")
     updates = data.get("updates", [])
     
+    print(f"[LL2 Poll] API values: status_id={status_id}, net={net}, prob={probability}, webcast_live={webcast_live}")
+    
     # Change Detection
     
     # 1. Status Changed
@@ -60,6 +64,7 @@ async def poll_ll2():
         is_hold = status_id == 5
         is_scrub = status_id in [4, 7] # 4: Failure, 7: Partial Failure
         
+        print(f"[LL2 Poll] STATUS CHANGED: {state.get('last_status_id')} -> {status_id} ({status_name})")
         embed = create_status_change(status_name, desc, holdreason or failreason, is_hold, is_scrub)
         await send_discord_message("STATUS_CHANGE", embed)
         
@@ -67,34 +72,38 @@ async def poll_ll2():
         
         if is_hold:
             update_state("hold_start_utc", datetime.utcnow().isoformat() + "Z")
-            # Initial hold update
             hold_embed = create_hold_update("0h 0m", holdreason)
             msg_id = await send_discord_message("HOLD_UPDATE", hold_embed)
             if msg_id:
                 update_state("hold_discord_message_id", msg_id)
         elif state.get("last_status_id") == 5:
-            # Lifted hold
             update_state("hold_start_utc", None)
             update_state("hold_discord_message_id", None)
+    else:
+        print(f"[LL2 Poll] Status unchanged ({status_id})")
 
     # 2. NET Shifted
     if net != state.get("last_net"):
+        print(f"[LL2 Poll] NET CHANGED: {state.get('last_net')} -> {net}")
         if state.get("last_net"):
-            # Calculate delta
-            pass # Simplification: Just post the shift
-            embed = create_net_shift(state.get("last_net"), net, "Unknown")
+            embed = create_net_shift(state.get("last_net"), net, "Updated")
             await send_discord_message("NET_SHIFT", embed)
         update_state("last_net", net)
-        # TODO: Reschedule milestones
+    else:
+        print(f"[LL2 Poll] NET unchanged ({net})")
         
     # 3. Probability Changed
     if probability != state.get("last_probability"):
+        print(f"[LL2 Poll] PROBABILITY CHANGED: {state.get('last_probability')} -> {probability}")
         embed = create_weather_update(probability, weather_concerns)
         await send_discord_message("WEATHER_UPDATE", embed)
         update_state("last_probability", probability)
+    else:
+        print(f"[LL2 Poll] Probability unchanged ({probability})")
         
     # 4. Webcast Went Live
     if webcast_live and not state.get("last_webcast_live"):
+        print(f"[LL2 Poll] WEBCAST WENT LIVE")
         thumbnail = data.get("image", {}).get("thumbnail_url")
         embed = create_stream_live(YOUTUBE_FULL_URL, thumbnail, "https://plus.nasa.gov")
         await send_discord_message("STREAM_LIVE", embed)
@@ -107,10 +116,15 @@ async def poll_ll2():
         if uid > max_update_id:
             info_url = update.get("info_url", "")
             if info_url and "weather" in info_url.lower():
+                print(f"[LL2 Poll] New weather update: {info_url}")
                 embed = create_weather_update(probability, weather_concerns, info_url)
                 await send_discord_message("WEATHER_UPDATE", embed)
             max_update_id = uid
+    if max_update_id > state.get("last_ll2_update_id", 0):
+        print(f"[LL2 Poll] Updated max LL2 update ID: {max_update_id}")
     update_state("last_ll2_update_id", max_update_id)
+    
+    print("[LL2 Poll] Change detection complete")
 
 async def fetch_ll2_events():
     url = "https://ll.thespacedevs.com/2.3.0/events/upcoming/?search=artemis&limit=10"
