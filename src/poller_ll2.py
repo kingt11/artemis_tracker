@@ -1,5 +1,6 @@
 import httpx
 import asyncio
+import traceback
 from datetime import datetime
 from config import LL2_LAUNCH_ID, YOUTUBE_FULL_URL
 from state import update_state, load_state
@@ -11,18 +12,26 @@ from webhook import send_discord_message
 
 async def fetch_ll2_launch():
     url = f"https://ll.thespacedevs.com/2.3.0/launches/{LL2_LAUNCH_ID}/"
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:
         try:
+            print(f"[LL2] Fetching {url}")
             response = await client.get(url)
+            print(f"[LL2] Response status: {response.status_code}")
             if response.status_code == 429:
                 retry_after = int(response.headers.get("Retry-After", 60))
-                print(f"Rate limited. Retry after {retry_after}s")
+                print(f"[LL2] Rate limited. Retry after {retry_after}s")
                 await asyncio.sleep(retry_after)
                 return None
             response.raise_for_status()
-            return response.json()
+            data = response.json()
+            print(f"[LL2] Got launch data: status={data.get('status', {}).get('name')}, net={data.get('net')}")
+            return data
+        except httpx.HTTPStatusError as e:
+            print(f"[LL2] HTTP error {e.response.status_code}: {e.response.text[:500]}")
+            return None
         except Exception as e:
-            print(f"Error fetching LL2 launch: {e}")
+            print(f"[LL2] Error fetching launch: {type(e).__name__}: {e}")
+            traceback.print_exc()
             return None
 
 async def poll_ll2():
@@ -105,15 +114,16 @@ async def poll_ll2():
 
 async def fetch_ll2_events():
     url = "https://ll.thespacedevs.com/2.3.0/events/upcoming/?search=artemis&limit=10"
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:
         try:
+            print(f"[LL2 Events] Fetching events...")
             response = await client.get(url)
             if response.status_code == 429:
+                print("[LL2 Events] Rate limited, skipping")
                 return
             response.raise_for_status()
             data = response.json()
-            
-            # Simple check for new events could be added here
+            print(f"[LL2 Events] Got {data.get('count', 0)} events")
             
         except Exception as e:
-            print(f"Error fetching LL2 events: {e}")
+            print(f"[LL2 Events] Error: {type(e).__name__}: {e}")
